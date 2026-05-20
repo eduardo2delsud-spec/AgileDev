@@ -7,6 +7,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY . .
 
+RUN mkdir -p /app/data
+
 EXPOSE 4098
 
 CMD ["npx", "tsx", "src/index.ts"]
