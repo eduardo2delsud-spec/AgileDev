@@ -24,6 +24,7 @@ export default function App() {
   const [minimizedPanel, setMinimizedPanel] = useState(false)
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
+  const [activeDocTab, setActiveDocTab] = useState<string>("vision")
   const [models, setModels] = useState<OpenModel[]>([])
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
   const modelRef = useRef(DEFAULT_MODEL)
@@ -125,6 +126,11 @@ export default function App() {
     start()
   }, [start])
 
+  const handleSelectDoc = useCallback((slug: string, tabId: string) => {
+    setSelectedProject(slug)
+    setActiveDocTab(tabId)
+  }, [])
+
   // Calculate current step and detected variables from assistant metadata
   const currentStepAndMeta = useMemo(() => {
     if (messages.length === 0) return { step: 0, vars: {} }
@@ -177,6 +183,21 @@ export default function App() {
     return { step, vars }
   }, [messages])
 
+  // Force refresh projects when interview completes (step 12)
+  useEffect(() => {
+    if (currentStepAndMeta.step === 12 && messages.length > 0) {
+      const timer = setTimeout(async () => {
+        try {
+          const p = await listProjects()
+          setProjects(p)
+        } catch (e) {
+          console.error("Error refreshing projects:", e)
+        }
+      }, 2000) // Espera 2 segundos después de completar para dar tiempo a que se genere el proyecto
+      return () => clearTimeout(timer)
+    }
+  }, [currentStepAndMeta.step, messages.length])
+
   // Determine right panel content
   useEffect(() => {
     if (selectedProject) {
@@ -217,11 +238,13 @@ export default function App() {
               selected={selectedProject}
               onSelect={(slug) => {
                 setSelectedProject(slug)
+                setActiveDocTab("vision")
                 if (slug === null) {
                   setRightPanelContent("form")
                   start()
                 }
               }}
+              onSelectDoc={handleSelectDoc}
               isMinimized={minimizedSidebar}
               onToggleMinimize={() => setMinimizedSidebar(!minimizedSidebar)}
               savedSessions={savedSessions}
@@ -240,8 +263,13 @@ export default function App() {
                   selected={selectedProject}
                   onSelect={(slug) => {
                     setSelectedProject(slug)
+                    setActiveDocTab("vision")
                     setShowSidebar(false)
                     if (slug === null) start()
+                  }}
+                  onSelectDoc={(slug, tabId) => {
+                    handleSelectDoc(slug, tabId)
+                    setShowSidebar(false)
                   }}
                   onClose={() => setShowSidebar(false)}
                   isMinimized={false}
@@ -274,7 +302,7 @@ export default function App() {
         {/* Dynamic Right Panel */}
         <div className={`${minimizedPanel ? "w-16" : "hidden md:flex md:w-96 lg:w-1/4"} flex-col transition-all duration-300`}>
           {rightPanelContent === "doc" && selectedProject ? (
-            <DocPreview projectSlug={selectedProject} docs={docs} isMinimized={minimizedPanel} onToggleMinimize={() => setMinimizedPanel(!minimizedPanel)} />
+            <DocPreview projectSlug={selectedProject} docs={docs} isMinimized={minimizedPanel} onToggleMinimize={() => setMinimizedPanel(!minimizedPanel)} activeTab={activeDocTab} onTabChange={setActiveDocTab} />
           ) : rightPanelContent === "form" ? (
             <InteractiveForm
               currentStep={currentStepAndMeta.step}

@@ -1,8 +1,74 @@
 import { Router, Request, Response } from "express"
 import { getDb } from "../db"
 import { authMiddleware } from "../middleware/auth"
+import path from "path"
+import fs from "fs"
+
+const PROYECTOS_DIR = process.env.PROYECTOS_DIR || path.resolve(__dirname, "..", "..", "proyectos")
+
+function scanProyectos(): { name: string; slug: string; docs: string[] }[] {
+  try {
+    if (!fs.existsSync(PROYECTOS_DIR)) {
+      console.warn(`[projects] PROYECTOS_DIR not found: ${PROYECTOS_DIR}`)
+      return []
+    }
+    const entries = fs.readdirSync(PROYECTOS_DIR, { withFileTypes: true })
+    const projects: { name: string; slug: string; docs: string[] }[] = []
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      if (entry.name.startsWith(".") || entry.name === "_defaults") continue
+
+      const slug = entry.name
+      const projectDir = path.join(PROYECTOS_DIR, slug)
+      const name = slug
+        .replace(/-/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+
+      const docs: string[] = []
+      const docsDir = path.join(projectDir, "docs")
+      const changelogPath = path.join(projectDir, "changelog.md")
+
+      if (fs.existsSync(changelogPath)) {
+        docs.push("changelog.md")
+      }
+
+      if (fs.existsSync(docsDir)) {
+        collectMdFiles(docsDir, "docs", docs)
+      }
+
+      projects.push({ name, slug, docs })
+    }
+
+    return projects
+  } catch (err) {
+    console.error("[projects] Error scanning proyectos:", err)
+    return []
+  }
+}
+
+function collectMdFiles(dir: string, prefix: string, result: string[]) {
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name)
+      const relPath = `${prefix}/${entry.name}`
+      if (entry.isDirectory()) {
+        collectMdFiles(fullPath, relPath, result)
+      } else if (entry.name.endsWith(".md")) {
+        result.push(relPath)
+      }
+    }
+  } catch { }
+}
 
 const router = Router()
+
+router.get("/list", (_req: Request, res: Response) => {
+  const projects = scanProyectos()
+  res.json(projects)
+})
+
 router.use(authMiddleware)
 
 router.get("/", (req: Request, res: Response) => {

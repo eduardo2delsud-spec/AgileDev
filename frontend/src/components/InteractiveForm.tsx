@@ -26,6 +26,7 @@ const STEP_METADATA = [
 
 export default function InteractiveForm({ currentStep, detectedVariables, onSend, disabled, isMinimized = false, onToggleMinimize }: Props) {
   const [formState, setFormState] = useState<Record<string, string>>({})
+  const [completed, setCompleted] = useState(false)
 
   // Update local state when incoming variables change
   useEffect(() => {
@@ -33,6 +34,7 @@ export default function InteractiveForm({ currentStep, detectedVariables, onSend
       ...prev,
       ...detectedVariables,
     }))
+    if (currentStep !== 12) setCompleted(false)
   }, [detectedVariables, currentStep])
 
   const handleInputChange = (key: string, val: string) => {
@@ -71,9 +73,12 @@ export default function InteractiveForm({ currentStep, detectedVariables, onSend
     }
 
     onSend(messageText)
+    if (currentStep === 12) setCompleted(true)
   }
 
   const activeMeta = STEP_METADATA.find((m) => m.id === currentStep) || STEP_METADATA[0]
+
+  const isComplete = currentStep === 12
 
   if (currentStep === 0) {
     return (
@@ -579,7 +584,7 @@ export default function InteractiveForm({ currentStep, detectedVariables, onSend
             </>
           )}
 
-          {currentStep === 12 && (
+          {isComplete && !completed && (
             <>
               <div className="space-y-1.5">
                 <label className="text-[11px] font-extrabold text-gray-400 uppercase tracking-wider">Tipo de Proyecto</label>
@@ -595,7 +600,30 @@ export default function InteractiveForm({ currentStep, detectedVariables, onSend
             </>
           )}
 
-          {/* Submit controls */}
+          {isComplete && completed && (
+            <div className="flex flex-col items-center justify-center py-8 text-center animate-fade-in space-y-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 border-2 border-emerald-500/30">
+                <svg className="h-8 w-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-emerald-400">Proyecto Completado</h3>
+                <p className="mt-1 text-xs text-gray-400 max-w-xs leading-relaxed">
+                  Todos los datos han sido enviados al asistente. El proyecto se está generando y aparecerá en la barra lateral en unos segundos.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] text-gray-500 bg-gray-900/40 border border-gray-800/60 rounded-lg px-4 py-2">
+                <svg className="h-3.5 w-3.5 text-teal-400 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Generando documentación del proyecto...</span>
+              </div>
+            </div>
+          )}
+
+          {/* Submit controls — hide when completed */}
+          {!(isComplete && completed) && (
           <div className="pt-4">
             <button
               type="submit"
@@ -611,6 +639,7 @@ export default function InteractiveForm({ currentStep, detectedVariables, onSend
               Presionar el botón enviará los campos completados al chat para que el asistente de IA los procese y avance a la siguiente sección.
             </p>
           </div>
+          )}
         </form>
       </div>
     </div>

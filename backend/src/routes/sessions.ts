@@ -68,6 +68,19 @@ router.post("/", (req: Request, res: Response) => {
        WHERE id = ?`
     ).run(project_slug || null, project_name || null, messagesJson, req.body.status || "in_progress", existing.id)
 
+    // Create project if project_slug and project_name are provided
+    if (project_slug && project_name) {
+      const existingProject = db
+        .prepare("SELECT id FROM projects WHERE slug = ? AND user_id = ?")
+        .get(project_slug, user.userId) as any
+
+      if (!existingProject) {
+        db.prepare(
+          "INSERT INTO projects (user_id, slug, name) VALUES (?, ?, ?)"
+        ).run(user.userId, project_slug, project_name)
+      }
+    }
+
     res.json({ id: existing.id })
   } else {
     const result = db
@@ -76,6 +89,13 @@ router.post("/", (req: Request, res: Response) => {
          VALUES (?, ?, ?, ?, ?, ?)`
       )
       .run(user.userId, opencode_session_id, project_slug || null, project_name || null, messagesJson, req.body.status || "in_progress")
+
+    // Create project if project_slug and project_name are provided
+    if (project_slug && project_name) {
+      db.prepare(
+        "INSERT OR IGNORE INTO projects (user_id, slug, name) VALUES (?, ?, ?)"
+      ).run(user.userId, project_slug, project_name)
+    }
 
     res.status(201).json({ id: result.lastInsertRowid })
   }
@@ -123,6 +143,23 @@ router.patch("/:id", (req: Request, res: Response) => {
   values.push(req.params.id)
 
   db.prepare(`UPDATE chat_sessions SET ${updates.join(", ")} WHERE id = ?`).run(...values)
+
+  // Create project if project_slug and project_name are being updated
+  if (req.body.project_slug && req.body.project_name) {
+    const existingProject = db
+      .prepare("SELECT id FROM projects WHERE slug = ? AND user_id = ?")
+      .get(req.body.project_slug, user.userId) as any
+
+    if (!existingProject) {
+      db.prepare(
+        "INSERT INTO projects (user_id, slug, name) VALUES (?, ?, ?)"
+      ).run(user.userId, req.body.project_slug, req.body.project_name)
+    } else {
+      db.prepare(
+        "UPDATE projects SET name = ?, updated_at = datetime('now') WHERE id = ?"
+      ).run(req.body.project_name, existingProject.id)
+    }
+  }
 
   res.json({ success: true })
 })

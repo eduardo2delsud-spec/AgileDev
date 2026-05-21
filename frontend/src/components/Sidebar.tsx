@@ -1,8 +1,11 @@
+import { useState } from "react"
 import type { Project, UserInfo } from "../types"
+import { getDocDisplayName, getTabIdForDoc } from "../constants/documents"
 
 interface Props {
   projects: Project[]
   onSelect: (slug: string | null) => void
+  onSelectDoc?: (slug: string, tabId: string) => void
   selected: string | null
   onClose?: () => void
   isMinimized?: boolean
@@ -17,6 +20,7 @@ interface Props {
 export default function Sidebar({
   projects,
   onSelect,
+  onSelectDoc,
   selected,
   onClose,
   isMinimized = false,
@@ -27,8 +31,27 @@ export default function Sidebar({
   onLogout,
   user,
 }: Props) {
+  const [expandedSlug, setExpandedSlug] = useState<string | null>(null)
+
+  const handleProjectClick = (slug: string) => {
+    if (expandedSlug === slug) {
+      setExpandedSlug(null)
+      return
+    }
+    setExpandedSlug(slug)
+    onSelect(slug)
+  }
+
+  const handleDocClick = (slug: string, docPath: string) => {
+    const tabId = getTabIdForDoc(docPath)
+    if (tabId) {
+      onSelectDoc?.(slug, tabId)
+    } else {
+      onSelect(slug)
+    }
+  }
   return (
-    <aside className={`flex h-full ${isMinimized ? "w-20" : "w-72"} flex-col border-r border-glass bg-glass shadow-glass shrink-0 z-10 transition-all duration-300`}>
+    <aside className={`flex h-full ${isMinimized ? "w-20" : "w-72"} flex-col border-r border-glass bg-glass shadow-glass shrink-0 z-10 transition-all duration-300 overflow-hidden`}>
       {/* Brand Header */}
       <div className={`flex items-center gap-2.5 border-b border-gray-800/80 ${isMinimized ? "px-3 py-3" : "px-5 py-4"} bg-gray-950/40`}>
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-tr from-emerald-500 to-teal-500 text-white shadow-[0_2px_10px_rgba(16,185,129,0.3)]">
@@ -176,39 +199,69 @@ export default function Sidebar({
         ) : (
           projects.map((p) => {
             const isSelected = selected === p.slug
+            const isExpanded = expandedSlug === p.slug
             return (
-              <button
-                key={p.slug}
-                onClick={() => onSelect(p.slug)}
-                className={`group relative w-full flex items-center gap-3 rounded-xl px-3.5 py-3 text-left transition-all duration-300 border ${
-                  isSelected
-                    ? "bg-gradient-to-r from-emerald-600/15 to-teal-600/5 border-emerald-500/30 text-white shadow-[0_4px_16px_rgba(16,185,129,0.06)]"
-                    : "border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40 hover:border-gray-800"
-                }`}
-              >
-                {isSelected && (
-                  <div className="absolute left-0 top-1/4 bottom-1/4 w-1 rounded-r bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
-                )}
-                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-all duration-300 ${
-                  isSelected
-                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                    : "bg-gray-800/40 border-gray-800/60 text-gray-500 group-hover:text-gray-400 group-hover:bg-gray-800"
-                }`}>
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              <div key={p.slug} className="space-y-1">
+                <button
+                  onClick={() => handleProjectClick(p.slug)}
+                  className={`group relative w-full flex items-center gap-3 rounded-xl px-3.5 py-3 text-left transition-all duration-300 border ${
+                    isSelected
+                      ? "bg-gradient-to-r from-emerald-600/15 to-teal-600/5 border-emerald-500/30 text-white shadow-[0_4px_16px_rgba(16,185,129,0.06)]"
+                      : "border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40 hover:border-gray-800"
+                  }`}
+                >
+                  {isSelected && (
+                    <div className="absolute left-0 top-1/4 bottom-1/4 w-1 rounded-r bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                  )}
+                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-all duration-300 ${
+                    isSelected
+                      ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                      : "bg-gray-800/40 border-gray-800/60 text-gray-500 group-hover:text-gray-400 group-hover:bg-gray-800"
+                  }`}>
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12.5px] font-bold truncate tracking-wide leading-tight">
+                      {p.name}
+                    </p>
+                    <p className="text-[10px] font-semibold text-gray-500 mt-0.5 flex items-center gap-1">
+                      <span>{p.docs ? p.docs.length : 0} archivos</span>
+                      <span>•</span>
+                      <span className="text-[9px] uppercase tracking-wider text-emerald-500/80 font-bold">Scrum</span>
+                    </p>
+                  </div>
+                  <svg
+                    className={`h-3.5 w-3.5 text-gray-500 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[12.5px] font-bold truncate tracking-wide leading-tight">
-                    {p.name}
-                  </p>
-                  <p className="text-[10px] font-semibold text-gray-500 mt-0.5 flex items-center gap-1">
-                    <span>{p.docs ? p.docs.length : 0} archivos</span>
-                    <span>•</span>
-                    <span className="text-[9px] uppercase tracking-wider text-emerald-500/80 font-bold">Scrum</span>
-                  </p>
-                </div>
-              </button>
+                </button>
+
+                {isExpanded && p.docs && p.docs.length > 0 && (
+                  <div className="ml-4 space-y-0.5 border-l-2 border-gray-800/60 pl-2">
+                    {p.docs.map((docPath) => {
+                      const cleanPath = docPath.replace(/\\/g, "/")
+                      return (
+                        <button
+                          key={docPath}
+                          onClick={() => handleDocClick(p.slug, cleanPath)}
+                          className="w-full flex items-center gap-2 rounded-lg px-3 py-1.5 text-left transition-all duration-200 hover:bg-gray-800/30 text-gray-500 hover:text-gray-200 group"
+                        >
+                          <svg className="h-3.5 w-3.5 shrink-0 text-gray-600 group-hover:text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                          <span className="text-[10.5px] font-semibold truncate">
+                            {getDocDisplayName(cleanPath)}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             )
           })
         )}

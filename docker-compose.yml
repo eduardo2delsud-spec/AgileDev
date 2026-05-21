@@ -12,6 +12,9 @@ services:
       ADMIN_USER: adreapm
       ADMIN_PASS: pm1234
       JWT_SECRET: ${JWT_SECRET:-agiledev-jwt-secure-key-2026}
+      PROYECTOS_DIR: /app/proyectos
+    volumes:
+      - ./proyectos:/app/proyectos
     depends_on:
       - opencode
     restart: unless-stopped

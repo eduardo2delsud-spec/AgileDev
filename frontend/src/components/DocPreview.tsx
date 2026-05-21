@@ -1,23 +1,17 @@
 import { useState, useEffect, useRef } from "react"
 import ReactMarkdown from "react-markdown"
+import JSZip from "jszip"
+import { saveAs } from "file-saver"
+import { TABS } from "../constants/documents"
 
 interface Props {
   projectSlug: string | null
   docs: string[]
   isMinimized?: boolean
   onToggleMinimize?: () => void
+  activeTab?: string
+  onTabChange?: (tabId: string) => void
 }
-
-const TABS = [
-  { id: "vision", name: "Visión del Producto", path: "product-vision.md" },
-  { id: "funcionales", name: "R. Funcionales", path: "requerimientos/funcionales.md" },
-  { id: "nofuncionales", name: "R. No Funcionales", path: "requerimientos/no-funcionales.md" },
-  { id: "backlog", name: "Product Backlog", path: "backlog/backlog.md" },
-  { id: "sprint", name: "Sprint Plan", path: "backlog/sprint-plan.md" },
-  { id: "roadmap", name: "Roadmap", path: "roadmap-sprints.md" },
-  { id: "tasks", name: "Task Cards", path: "task-cards.md" },
-  { id: "changelog", name: "Changelog", path: "../changelog.md" }, // located in parent of docs/
-]
 
 // Custom Markdown Table Parser for the DocPreview
 function parseBlocks(text: string) {
@@ -86,12 +80,14 @@ function parseBlocks(text: string) {
   return blocks
 }
 
-export default function DocPreview({ projectSlug, docs, isMinimized = false, onToggleMinimize }: Props) {
-  const [activeTab, setActiveTab] = useState(TABS[0].id)
+export default function DocPreview({ projectSlug, docs, isMinimized = false, onToggleMinimize, activeTab: externalTab, onTabChange }: Props) {
+  const [activeTab, setActiveTab] = useState(externalTab || TABS[0].id)
   const [content, setContent] = useState<string>("")
   const [loading, setLoading] = useState(false)
+  const [downloadingAll, setDownloadingAll] = useState(false)
   const [error, setError] = useState("")
   const [frontmatter, setFrontmatter] = useState<Record<string, string>>({})
+  const [copiedDoc, setCopiedDoc] = useState(false)
   const renderRef = useRef<HTMLDivElement>(null)
 
   const [zoomScale, setZoomScale] = useState(1.0)
@@ -107,14 +103,68 @@ export default function DocPreview({ projectSlug, docs, isMinimized = false, onT
     setTimeout(() => setCopiedIdx(null), 2000)
   }
 
+  const handleCopyContent = () => {
+    navigator.clipboard.writeText(content)
+    setCopiedDoc(true)
+    setTimeout(() => setCopiedDoc(false), 2000)
+  }
+
+  const handleDownloadAll = async () => {
+    if (!projectSlug) return
+    setDownloadingAll(true)
+    try {
+      const zip = new JSZip()
+      let fetchedCount = 0
+
+      for (const docPath of docs) {
+        try {
+          const cleanPath = docPath.replace(/\\/g, "/")
+          const url = `/docs/${projectSlug}/${cleanPath}`
+          const res = await fetch(url)
+          if (res.ok) {
+            const text = await res.text()
+            zip.file(cleanPath, text)
+            fetchedCount++
+          }
+        } catch { }
+      }
+
+      if (fetchedCount === 0) {
+        setError("No se pudo descargar ningún documento.")
+        return
+      }
+
+      const blob = await zip.generateAsync({ type: "blob" })
+      saveAs(blob, `${projectSlug}-documentos.zip`)
+    } catch (e: any) {
+      setError(e.message || "Error al generar la descarga")
+    } finally {
+      setDownloadingAll(false)
+    }
+  }
+
+  // Sync external activeTab
+  useEffect(() => {
+    if (externalTab && externalTab !== activeTab) {
+      setActiveTab(externalTab)
+    }
+  }, [externalTab])
+
+  // Notify parent of tab changes
+  const handleTabClick = (tabId: string) => {
+    setActiveTab(tabId)
+    onTabChange?.(tabId)
+  }
+
   // Reset zoom when switching tabs
   useEffect(() => {
     setZoomScale(1.0)
+    setCopiedDoc(false)
   }, [activeTab])
 
   const currentTabInfo = TABS.find((t) => t.id === activeTab)!
   const hasDoc = projectSlug && (
-    activeTab === "changelog" || // changelog is always expected or handled gracefully
+    activeTab === "changelog" ||
     docs.some((d) => d.replace(/\\/g, "/").includes(currentTabInfo.path))
   )
 
@@ -139,7 +189,6 @@ export default function DocPreview({ projectSlug, docs, isMinimized = false, onT
         }
         const text = await res.text()
 
-        // Extract Frontmatter
         let md = text
         const fm: Record<string, string> = {}
         if (text.startsWith("---")) {
@@ -199,9 +248,9 @@ export default function DocPreview({ projectSlug, docs, isMinimized = false, onT
   }
 
   return (
-    <div className={`flex flex-1 flex-col h-full ${isMinimized ? "bg-gray-950/45 border-l border-glass" : "bg-gray-950/45 border-l border-glass"} overflow-hidden animate-fade-in z-0`}>
+    <div className={`flex flex-1 flex-col h-full w-full ${isMinimized ? "bg-gray-950/45 border-l border-glass" : "bg-gray-950/45 border-l border-glass"} overflow-hidden animate-fade-in z-0`}>
       {/* Dynamic Tab Bar */}
-      <div className="flex overflow-x-auto bg-gray-900/40 border-b border-gray-800/80 px-4 py-2 scrollbar-none justify-between items-center">
+      <div className="flex overflow-x-auto bg-gray-900/40 border-b border-gray-800/80 px-4 py-2 scrollbar-none justify-between items-center shrink-0">
         {isMinimized && onToggleMinimize ? (
           <button
             onClick={onToggleMinimize}
@@ -219,7 +268,7 @@ export default function DocPreview({ projectSlug, docs, isMinimized = false, onT
               {TABS.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabClick(tab.id)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 whitespace-nowrap border ${
                     activeTab === tab.id
                       ? "bg-emerald-600/10 border-emerald-500/30 text-emerald-400 shadow-sm"
@@ -230,24 +279,63 @@ export default function DocPreview({ projectSlug, docs, isMinimized = false, onT
                 </button>
               ))}
             </div>
-            {onToggleMinimize && (
-              <button
-                onClick={onToggleMinimize}
-                title="Minimizar"
-                aria-label="Minimizar panel"
-                className="p-2 rounded hover:bg-gray-800/40"
-              >
-                <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19l-7-7 7-7" />
-                </svg>
-              </button>
-            )}
+            <div className="flex items-center gap-1">
+              {projectSlug && !loading && content && (
+                <button
+                  onClick={handleCopyContent}
+                  title="Copiar contenido del documento"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 border border-gray-700/50 text-gray-400 hover:text-gray-200 hover:bg-gray-800/40"
+                >
+                  {copiedDoc ? (
+                    <span className="text-emerald-400">Copiado</span>
+                  ) : (
+                    <>
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                      </svg>
+                      Copiar
+                    </>
+                  )}
+                </button>
+              )}
+              {projectSlug && docs.length > 0 && (
+                <button
+                  onClick={handleDownloadAll}
+                  disabled={downloadingAll}
+                  title="Descargar todos los documentos"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 border border-gray-700/50 text-gray-400 hover:text-gray-200 hover:bg-gray-800/40 disabled:opacity-50"
+                >
+                  {downloadingAll ? (
+                    <span className="text-emerald-400">Descargando...</span>
+                  ) : (
+                    <>
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Descargar Todo
+                    </>
+                  )}
+                </button>
+              )}
+              {onToggleMinimize && (
+                <button
+                  onClick={onToggleMinimize}
+                  title="Minimizar"
+                  aria-label="Minimizar panel"
+                  className="p-2 rounded hover:bg-gray-800/40"
+                >
+                  <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19l-7-7 7-7" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </>
         )}
       </div>
 
       {/* Render Area */}
-      <div ref={renderRef} className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div ref={renderRef} className="flex-1 overflow-y-auto overflow-x-hidden p-6 space-y-4 w-full">
         {loading ? (
           // Shimmer Skeleton Loader
           <div className="space-y-4 animate-pulse">

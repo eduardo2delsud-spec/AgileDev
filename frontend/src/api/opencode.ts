@@ -43,7 +43,7 @@ export async function sendMessage(
 }
 
 export async function listProjects(): Promise<import("../types").Project[]> {
-  return request("/file?path=proyectos")
+  return request("/projects/list")
 }
 
 export async function listModels(): Promise<import("../types").OpenModel[]> {

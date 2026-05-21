@@ -33,7 +33,7 @@ export default function Chat({
   }, [messages])
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-gray-950/20">
+    <div className="flex h-full w-full flex-col bg-gray-950/20 overflow-hidden">
       {/* Premium Header */}
       <div className="flex items-center justify-between border-b border-gray-800/80 bg-gray-900/30 px-5 py-3 shrink-0">
         {/* Mobile menu button */}
@@ -73,7 +73,7 @@ export default function Chat({
       <Stepper messages={messages} />
 
       {/* Messages Feed */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-5 space-y-4 w-full">
         {messages.length === 0 && !loading && (
           <div className="flex h-full items-center justify-center py-20">
             <div className="text-center animate-slide-up">
@@ -99,10 +99,13 @@ export default function Chat({
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-600/10 to-teal-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold shadow-inner">
               PM
             </div>
-            <div className="flex gap-1.5 bg-gray-900/60 border border-gray-800/80 px-4 py-3 rounded-2xl rounded-bl-none shadow-md items-center">
-              <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-400 [animation-delay:-0.3s]" />
-              <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-400 [animation-delay:-0.15s]" />
-              <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-400" />
+            <div className="flex flex-col gap-2 bg-gray-900/60 border border-gray-800/80 px-4 py-3 rounded-2xl rounded-bl-none shadow-md">
+              <div className="flex gap-1.5 items-center">
+                <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-400 [animation-delay:-0.3s]" />
+                <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-400 [animation-delay:-0.15s]" />
+                <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-400" />
+              </div>
+              <span className="text-xs text-emerald-300 font-medium">Procesando información del proyecto...</span>
             </div>
           </div>
         )}
