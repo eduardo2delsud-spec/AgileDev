@@ -225,10 +225,7 @@ export default function App() {
   }
 
   return (
-    <div className="relative flex min-h-screen w-screen bg-gray-950">
-      <div className="absolute top-[-10%] left-[-10%] h-[50%] w-[50%] rounded-full bg-emerald-500/5 blur-[120px] pointer-events-none animate-radial-1" />
-      <div className="absolute bottom-[-10%] right-[-10%] h-[50%] w-[50%] rounded-full bg-teal-500/5 blur-[120px] pointer-events-none" />
-
+    <div className="relative h-screen w-screen bg-gray-950 text-gray-300 flex">
       <div className="relative z-10 flex h-full w-full overflow-hidden flex-col md:flex-row">
         {/* Sidebar */}
         <div className={`${minimizedSidebar ? "w-20" : "w-full md:w-72"} md:flex-shrink-0 transition-all duration-300`}>
